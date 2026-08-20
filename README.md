@@ -27,10 +27,9 @@ Playground 页面仍然负责调用图像 API 和保存自己的登录状态。M
 - 已能在浏览器中正常打开并使用 GPT Image Playground 的页面；
 - 一个 MCP 客户端，例如支持 `mcpServers` 配置的 Agent 客户端。
 
-以下命令以当前项目目录为例：
+以下命令请在项目根目录执行：
 
 ```bash
-cd /run/media/peki/Xstar/Project/imageplayground/image-playground-mcp
 npm install --no-bin-links
 npm run build
 ```
@@ -60,10 +59,10 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 1. 打开 Chrome/Chromium，访问 `chrome://extensions`。
 2. 开启右上角的“开发者模式”。
 3. 点击“加载已解压的扩展程序”。
-4. 选择本项目的 `extension` 目录：
+4. 选择项目根目录下的 `extension` 目录：
 
    ```text
-   /run/media/peki/Xstar/Project/imageplayground/image-playground-mcp/extension
+<项目根目录>/extension
    ```
 
 5. 点击浏览器工具栏中的扩展图标，打开扩展小窗口。
@@ -83,7 +82,7 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
     "gpt-image-playground": {
       "command": "node",
       "args": [
-        "/run/media/peki/Xstar/Project/imageplayground/image-playground-mcp/dist/server.js"
+        "<项目根目录>/dist/server.js"
       ],
       "env": {
         "MCP_BRIDGE_TOKEN": "替换为随机令牌",
@@ -194,6 +193,7 @@ curl -H 'X-MCP-Bridge-Token: 替换为随机令牌' \
 ### 下载失败
 
 确认任务已经完成、任务卡片仍在页面中，并使用新的绝对输出路径。下载从详情弹窗读取原图，不会通过浏览器存储读取图片。
+详情弹窗中的原图可能比任务卡片缩略图更晚加载，扩展会兼容普通 `img` 图片并最多等待 60 秒；失败后会自动关闭详情弹窗。更新扩展代码后，请在 `chrome://extensions` 点击“重新加载”。
 
 ## 设计边界
 
