@@ -120,6 +120,22 @@ function createHarness(images, { outputIds = [], onNext = () => {} } = {}) {
 }
 
 {
+  const ordinaryImage = new HTMLImageElement({ src: 'blob:ordinary', visible: true })
+  const { context, card, next } = createHarness([ordinaryImage], { outputIds: ['expected-id'] })
+  const result = await vm.runInContext('openOriginalImage', context)(card, 0)
+  assert.equal(result, ordinaryImage, 'an ordinary img should fall back immediately when its expected ID is absent')
+  assert.equal(next.clickCount, 0, 'the first ordinary image should not trigger navigation')
+}
+
+{
+  const unloadedExact = new HTMLImageElement({ id: 'expected-id', src: 'blob:exact', visible: false, loaded: false })
+  const ordinaryImage = new HTMLImageElement({ src: 'blob:ordinary', visible: true })
+  const { context, card } = createHarness([unloadedExact, ordinaryImage], { outputIds: ['expected-id'] })
+  const result = await vm.runInContext('openOriginalImage', context)(card, 0)
+  assert.equal(result, ordinaryImage, 'a stalled exact image must not block a loaded ordinary image fallback')
+}
+
+{
   const first = new HTMLImageElement({ src: 'blob:first', visible: true })
   const second = new HTMLImageElement({ src: 'blob:second', visible: false })
   const harness = createHarness([first, second], {
@@ -165,5 +181,7 @@ function createHarness(images, { outputIds = [], onNext = () => {} } = {}) {
 
 assert.equal((source.match(/async function waitForDetailImage\s*\(/g) || []).length, 1, 'waitForDetailImage must be defined once')
 assert.doesNotMatch(source, /timeoutMs\s*=\s*10_000/, 'the old 10 second detail timeout must not return')
+assert.match(source, /deadline\s*=\s*Date\.now\(\)\s*\+\s*60_000/, 'detail navigation should share one 60 second deadline')
+assert.doesNotMatch(source, /exactOnly/, 'an exact-only wait must not block ordinary image fallback')
 
 console.log('content-script DOM simulation tests passed')

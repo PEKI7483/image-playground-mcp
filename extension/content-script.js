@@ -133,6 +133,10 @@ function detailImageIdentity(image) {
   return `${image.getAttribute('data-image-id') || ''}\n${image.currentSrc || image.src || ''}`
 }
 
+function isLoadedDetailImage(image) {
+  return image instanceof HTMLImageElement && Boolean(image.currentSrc || image.src) && image.complete && image.naturalWidth > 0
+}
+
 async function waitForDetailImage(imageId, timeoutMs = 60_000, { visibleOnly = false, previousIdentity = null } = {}) {
   const startedAt = Date.now()
   while (Date.now() - startedAt < timeoutMs) {
@@ -140,15 +144,18 @@ async function waitForDetailImage(imageId, timeoutMs = 60_000, { visibleOnly = f
     if (modal instanceof HTMLElement) {
       const images = findDetailImages(modal)
       const exact = imageId ? images.find((image) =>
-        image.getAttribute('data-image-id') === imageId && (!visibleOnly || isDisplayedImage(image)),
+        image.getAttribute('data-image-id') === imageId && (!visibleOnly || isDisplayedImage(image)) &&
+        (previousIdentity === null || detailImageIdentity(image) !== previousIdentity),
       ) : null
-      const image = exact || (previousIdentity === null
+      const displayed = previousIdentity === null
         ? displayedDetailImage(images)
         : images.find((candidate) => isDisplayedImage(candidate) &&
-          (candidate.currentSrc || candidate.src) && detailImageIdentity(candidate) !== previousIdentity))
+          (candidate.currentSrc || candidate.src) && detailImageIdentity(candidate) !== previousIdentity)
+      const image = (isLoadedDetailImage(exact) && exact) ||
+        (isLoadedDetailImage(displayed) && displayed) || exact || displayed
       if (image instanceof HTMLImageElement && (image.currentSrc || image.src) &&
         (previousIdentity === null || detailImageIdentity(image) !== previousIdentity)) {
-        if (image.complete && image.naturalWidth > 0) return image
+        if (isLoadedDetailImage(image)) return image
         await new Promise((resolve) => {
           const finish = () => {
             image.removeEventListener('load', finish)
@@ -159,7 +166,7 @@ async function waitForDetailImage(imageId, timeoutMs = 60_000, { visibleOnly = f
           image.addEventListener('error', finish, { once: true })
           setTimeout(finish, 500)
         })
-        if (image.complete && image.naturalWidth > 0) return image
+        if (isLoadedDetailImage(image)) return image
       }
     }
     await sleep(200)
@@ -180,8 +187,10 @@ async function openOriginalImage(card, imageIndex) {
   const outputIds = (card.querySelector('[data-output-image-ids]')?.getAttribute('data-output-image-ids') || '').split(',').filter(Boolean)
   const targetIndex = imageIndex || 0
   const targetId = outputIds[targetIndex]
+  const deadline = Date.now() + 60_000
+  const remainingWait = () => Math.max(0, deadline - Date.now())
   card.click()
-  let image = await waitForDetailImage(targetId)
+  let image = await waitForDetailImage(targetId, remainingWait())
 
   // The requested full-size image may already be present in the modal, even if other images are hidden.
   if (image.getAttribute('data-image-id') === targetId || targetIndex === 0) return image
@@ -192,7 +201,10 @@ async function openOriginalImage(card, imageIndex) {
     if (!(next instanceof HTMLButtonElement)) throw new Error('无法切换到指定输出图片')
     const previousIdentity = detailImageIdentity(image)
     next.click()
-    image = await waitForDetailImage(outputIds[index + 1], 60_000, { visibleOnly: true, previousIdentity })
+    image = await waitForDetailImage(outputIds[index + 1], remainingWait(), {
+      visibleOnly: true,
+      previousIdentity,
+    })
   }
   return image
 }
