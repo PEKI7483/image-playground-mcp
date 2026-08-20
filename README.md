@@ -18,7 +18,7 @@ Playground 页面仍然负责调用图像 API 和保存自己的登录状态。M
 
 任务由本机桥接服务严格 FIFO 串行处理。图片生成没有固定 20 秒上限，扩展领取任务后会持续发送心跳并等待页面结束，因此不同生成时长不会导致任务自动重排或重复点击。浏览器关闭后，当前任务无法继续执行；重新打开页面后不要直接重复提交，应先检查原任务状态。
 
-## 安装前准备
+## 安装与配置
 
 需要：
 
@@ -27,12 +27,18 @@ Playground 页面仍然负责调用图像 API 和保存自己的登录状态。M
 - 已能在浏览器中正常打开并使用 GPT Image Playground 的页面；
 - 一个 MCP 客户端，例如支持 `mcpServers` 配置的 Agent 客户端。
 
-以下命令请在项目根目录执行：
+### 获取并构建项目
+
+从 GitHub 获取项目并构建：
 
 ```bash
+git clone https://github.com/PEKI7483/image-playground-mcp.git
+cd image-playground-mcp
 npm install
 npm run build
 ```
+
+如果使用了自定义目录，后续文档中的 `<项目根目录>` 指刚刚克隆出的 `image-playground-mcp` 目录。
 
 构建成功后，`dist/` 目录应包含 `server.js`、`bridge.js` 和 `bridgeMain.js`。
 
@@ -72,26 +78,67 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 
 设置过程只在扩展小窗口内完成，不会打开新的标签页。扩展保存的只是桥接地址和连接码，不保存 Playground API Key。
 
-## 配置 MCP 客户端
+## 添加 MCP 客户端
 
-将下面的配置加入 MCP 客户端。把 `<项目根目录>` 替换为本项目所在目录，把 token 替换为刚才生成的令牌：
+先完成上面的扩展配置，再将 MCP 服务添加到一个或多个 Agent 客户端。所有客户端必须使用同一个连接码和端口。
+
+### Codex CLI 和 Codex 应用
+
+Codex CLI、Codex 应用和 IDE 扩展共享 MCP 配置。把 `<项目根目录>` 和连接码替换为实际值后执行。更多选项见 [Codex MCP 官方文档](https://developers.openai.com/codex/mcp/)：
+
+```bash
+codex mcp add gpt-image-playground \
+  --env MCP_BRIDGE_TOKEN=替换为随机令牌 \
+  --env MCP_BRIDGE_PORT=8787 \
+  -- node "<项目根目录>/dist/server.js"
+```
+
+检查是否添加成功：
+
+```bash
+codex mcp list
+```
+
+### Claude Code
+
+```bash
+claude mcp add --transport stdio gpt-image-playground \
+  --env MCP_BRIDGE_TOKEN=替换为随机令牌 \
+  --env MCP_BRIDGE_PORT=8787 \
+  -- node "<项目根目录>/dist/server.js"
+```
+
+### Gemini CLI
+
+较新的 Gemini CLI 可以使用以下命令添加本地 STDIO MCP：
+
+```bash
+gemini mcp add gpt-image-playground \
+  --env MCP_BRIDGE_TOKEN=替换为随机令牌 \
+  --env MCP_BRIDGE_PORT=8787 \
+  -- node "<项目根目录>/dist/server.js"
+```
+
+### Cursor、Cline、Roo Code、Windsurf 和 Claude Desktop
+
+这些客户端通常通过 MCP 设置页面或 JSON 配置添加服务。将下面的 `gpt-image-playground` 对象合并到客户端现有的 `mcpServers` 中，不要覆盖其他服务器：
 
 ```json
 {
-  "mcpServers": {
-    "gpt-image-playground": {
-      "command": "node",
-      "args": [
-        "<项目根目录>/dist/server.js"
-      ],
-      "env": {
-        "MCP_BRIDGE_TOKEN": "替换为随机令牌",
-        "MCP_BRIDGE_PORT": "8787"
-      }
+  "gpt-image-playground": {
+    "command": "node",
+    "args": [
+      "<项目根目录>/dist/server.js"
+    ],
+    "env": {
+      "MCP_BRIDGE_TOKEN": "替换为随机令牌",
+      "MCP_BRIDGE_PORT": "8787"
     }
   }
 }
 ```
+
+Cursor 通常使用项目目录中的 `.cursor/mcp.json`；Claude Desktop、Cline、Roo Code 和 Windsurf 可在各自的 MCP 设置页面中粘贴或导入同样的服务器对象。保存后重启客户端或重新加载 MCP 配置。
 
 MCP 客户端启动 `dist/server.js` 时，它会通过 stdio 提供 MCP 协议，同时启动本机桥接服务。通常不需要在另一个终端手工运行 `npm start`。如需单独启动桥接服务进行调试，可以使用：
 
