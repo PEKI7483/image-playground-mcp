@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <title>浏览器里的 MCP 图片工具</title>
+    <style>
+      body { max-width: 640px; margin: 40px auto; padding: 0 20px; font: 14px system-ui, sans-serif; }
+      label { display: block; margin: 18px 0 6px; font-weight: 600; }
+      input { box-sizing: border-box; width: 100%; padding: 8px; }
+      button { margin-top: 20px; padding: 8px 14px; }
+      #status { margin-left: 10px; }
+    </style>
+  </head>
+  <body>
+    <h1>浏览器里的 MCP 图片工具</h1>
+    <p>让 Agent 使用浏览器里的图片工具。连接信息只保存在扩展中，不会读取或保存 Playground API Key。</p>
+    <label for="bridgeUrl">图片工具地址</label>
+    <input id="bridgeUrl" value="http://127.0.0.1:8787">
+    <label for="bridgeToken">连接码</label>
+    <input id="bridgeToken" type="password" autocomplete="off">
+    <button id="save">保存</button><span id="status"></span>
+    <script src="options.js"></script>
+  </body>
+</html>

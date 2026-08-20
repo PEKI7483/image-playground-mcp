@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>浏览器里的 MCP 图片工具</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --ink: #202522; --muted: #6d756f; --line: #d9d8cf;
+        --surface: #fffdf9; --surface-2: #f3f2ec;
+        --green: #2f7d5b; --green-soft: #e8f2eb;
+        --warm: #a86d27; --warm-soft: #f8eddb;
+        --red: #a64e46; --red-soft: #f8e9e7; --blue: #3c668b;
+      }
+      * { box-sizing: border-box; }
+      body { width: 360px; min-height: 520px; margin: 0; color: var(--ink); background: var(--surface-2); font: 13px/1.4 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      button, input { font: inherit; }
+      button { cursor: pointer; }
+      button:focus-visible, input:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+      .topbar { display: flex; align-items: center; justify-content: space-between; min-height: 62px; padding: 14px 16px 12px; border-bottom: 1px solid var(--line); background: var(--surface); }
+      .brand { display: flex; align-items: center; gap: 9px; min-width: 0; }
+      .mark { display: grid; place-items: center; width: 27px; height: 27px; border-radius: 7px; background: var(--ink); color: var(--surface); font-size: 12px; }
+      .brand-name { font-size: 13px; font-weight: 600; white-space: nowrap; }
+      .brand-sub { display: block; color: var(--muted); font-size: 10px; font-weight: 400; }
+      .icon-button { display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--muted); font-size: 17px; }
+      .icon-button:hover { border-color: var(--line); background: var(--surface-2); color: var(--ink); }
+      .tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; padding: 4px; border-bottom: 1px solid var(--line); background: var(--surface); }
+      .tabs button { border: 0; border-radius: 5px; background: transparent; color: var(--muted); padding: 8px; font-size: 11px; }
+      .tabs button.active { background: var(--green-soft); color: var(--green); }
+      main { min-height: 405px; padding: 16px; }
+      .page { display: none; }
+      .page.active { display: block; }
+      .status-line { display: flex; align-items: center; gap: 7px; margin-bottom: 8px; color: var(--green); font-size: 12px; }
+      .status-line.warm { color: var(--warm); }
+      .status-line.error { color: var(--red); }
+      .status-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+      .banner { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 13px; border: 1px solid var(--line); border-radius: 8px; background: var(--green-soft); }
+      .banner.warm { border-color: #e3cfad; background: var(--warm-soft); }
+      .banner.error { border-color: #e1c6c2; background: var(--red-soft); }
+      .banner h1 { margin: 0; font-size: 13px; font-weight: 600; }
+      .banner p { margin: 3px 0 0; color: var(--muted); font-size: 11px; }
+      .banner-action, .link-button { border: 0; background: transparent; color: var(--green); padding: 0; font-size: 11px; white-space: nowrap; }
+      .banner.warm .banner-action { color: var(--warm); }
+      .banner.error .banner-action { color: var(--red); }
+      .overview { margin-top: 13px; border-top: 1px solid var(--line); }
+      .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--line); }
+      .row-title { display: block; font-size: 12px; font-weight: 500; }
+      .row-copy { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; }
+      .row-value { color: var(--ink); font-size: 11px; font-weight: 600; white-space: nowrap; }
+      .row-value.good { color: var(--green); }
+      .row-value.warm { color: var(--warm); }
+      .row-value.error { color: var(--red); }
+      .task { margin-top: 13px; padding: 12px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); }
+      .task-head { display: flex; justify-content: space-between; gap: 8px; }
+      .task-title { font-size: 12px; font-weight: 600; }
+      .task-state { color: var(--green); font-size: 10px; }
+      .task-copy { margin: 8px 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
+      .progress { height: 5px; overflow: hidden; border-radius: 3px; background: #e2e3dc; }
+      .progress i { display: block; width: 64%; height: 100%; border-radius: 3px; background: var(--green); animation: pulse 1.6s ease-in-out infinite alternate; }
+      .task-foot { display: flex; justify-content: space-between; margin-top: 7px; color: var(--muted); font-size: 10px; }
+      .helper { margin: 10px 0 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
+      .form-title { margin: 0 0 4px; font-size: 15px; font-weight: 600; }
+      .form-intro { margin: 0 0 16px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+      .field { margin-bottom: 13px; }
+      .field label { display: block; margin-bottom: 5px; font-size: 11px; font-weight: 600; }
+      .field input { width: 100%; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); padding: 9px 10px; font-size: 11px; }
+      .field input[type="password"] { letter-spacing: .08em; }
+      .field small { display: block; margin-top: 4px; color: var(--muted); font-size: 10px; }
+      .form-actions { display: flex; align-items: center; gap: 8px; margin-top: 17px; }
+      .form-message { min-height: 16px; margin-top: 9px; color: var(--green); font-size: 10px; }
+      .primary, .secondary { border-radius: 6px; padding: 9px 12px; font-size: 11px; }
+      .primary { border: 1px solid var(--ink); background: var(--ink); color: var(--surface); }
+      .secondary { border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+      .primary:hover, .secondary:hover { opacity: .86; }
+      footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 10px; }
+      @keyframes pulse { from { opacity: .55; } to { opacity: 1; } }
+      @media (prefers-color-scheme: dark) {
+        :root { --ink: #eef1eb; --muted: #aab4ac; --line: #465048; --surface: #252a27; --surface-2: #202521; --green: #82c39b; --green-soft: #243c2e; --warm: #e0ac63; --warm-soft: #453520; --red: #ed9489; --red-soft: #472b2a; --blue: #a6c9e6; }
+        .progress { background: #3a433c; }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="topbar"><div class="brand"><span class="mark">✦</span><div class="brand-name">GPT Image Playground<span class="brand-sub">让 Agent 使用浏览器里的图片工具</span></div></div><button class="icon-button" id="refresh" type="button" aria-label="重新检查" title="重新检查">↻</button></header>
+    <nav class="tabs" aria-label="弹窗页面"><button id="runTab" class="active" type="button">运行概览</button><button id="settingsTab" type="button">连接设置</button></nav>
+    <main>
+      <section id="runPage" class="page active" aria-live="polite"><div id="statusLine" class="status-line"><i class="status-dot"></i><span>正在检查</span></div><div id="banner" class="banner"><div><h1 id="bannerTitle">正在检查图片工具</h1><p id="bannerCopy">通常只需要几秒钟。</p></div><button id="bannerAction" class="banner-action" type="button">检查中</button></div><div class="overview"><div class="row"><div><span class="row-title">可用的图片页面</span><span id="pageCopy" class="row-copy">正在查找</span></div><span id="pageValue" class="row-value">检查中</span></div><div class="row"><div><span class="row-title">正在处理的请求</span><span id="taskCopy" class="row-copy">正在确认</span></div><span id="taskValue" class="row-value">检查中</span></div><div class="row"><div><span class="row-title">最近检查</span><span id="checkedCopy" class="row-copy">请稍候</span></div><span id="checkedValue" class="row-value">-</span></div></div><div id="taskPanel"></div><p id="helper" class="helper"></p></section>
+      <section id="settingsPage" class="page"><h1 class="form-title">连接图片工具</h1><p class="form-intro">只需设置一次。通常保持默认内容即可。</p><div class="field"><label for="bridgeUrl">图片工具地址</label><input id="bridgeUrl" autocomplete="url"><small>如果你没有特别配置过，请不要修改。</small></div><div class="field"><label for="bridgeToken">连接码</label><input id="bridgeToken" type="password" autocomplete="off"><small>从安装步骤复制过来的那一串字符。</small></div><div class="form-actions"><button id="saveSettings" class="primary" type="button">保存并检查</button><button id="backToRun" class="secondary" type="button">返回</button></div><div id="settingsMessage" class="form-message" aria-live="polite"></div></section>
+    </main>
+    <footer><span>本机图片工具</span><button id="footerRefresh" class="link-button" type="button">重新检查</button></footer>
+    <script src="popup.js"></script>
+  </body>
+</html>
