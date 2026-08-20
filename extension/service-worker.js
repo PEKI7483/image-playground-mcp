@@ -1,19 +1,35 @@
-const DEFAULT_BRIDGE_URL = 'http://127.0.0.1:8787'
-const DEFAULT_BRIDGE_TOKEN = ''
+import { DEFAULT_BRIDGE_URL, normalizeBridgeUrl } from './bridge-url.js'
+
 let polling = false
 
 async function settings() {
-  const values = await chrome.storage.local.get({ bridgeUrl: DEFAULT_BRIDGE_URL, bridgeToken: DEFAULT_BRIDGE_TOKEN })
-  return { bridgeUrl: values.bridgeUrl.replace(/\/$/, ''), bridgeToken: values.bridgeToken }
+  const values = await chrome.storage.local.get({ bridgeUrl: DEFAULT_BRIDGE_URL })
+  return { bridgeUrl: normalizeBridgeUrl(values.bridgeUrl || DEFAULT_BRIDGE_URL) }
 }
 
-async function bridgeRequest(path, init = {}) {
+async function getBridgeToken(config, forceRefresh = false) {
+  const stored = await chrome.storage.session.get({ bridgeToken: '' })
+  if (!forceRefresh && stored.bridgeToken) return stored.bridgeToken
+  const response = await fetch(`${config.bridgeUrl}/auth`, { cache: 'no-store' })
+  const body = await response.json().catch(() => ({}))
+  if (!response.ok || typeof body.token !== 'string' || !body.token) {
+    throw new Error('图片工具尚未启动，请先启动 Agent 客户端')
+  }
+  await chrome.storage.session.set({ bridgeToken: body.token })
+  return body.token
+}
+
+async function bridgeRequest(path, init = {}, retried = false) {
   const config = await settings()
-  if (!config.bridgeToken) throw new Error('请在扩展选项中填写 MCP_BRIDGE_TOKEN')
-  const headers = { ...(init.headers || {}), 'X-MCP-Bridge-Token': config.bridgeToken }
+  const token = await getBridgeToken(config, retried)
+  const headers = { ...(init.headers || {}), 'X-MCP-Bridge-Token': token }
   const response = await fetch(`${config.bridgeUrl}${path}`, { ...init, headers })
   if (response.status === 204) return null
   const body = await response.json()
+  if (response.status === 401 && !retried) {
+    await chrome.storage.session.remove('bridgeToken')
+    return bridgeRequest(path, init, true)
+  }
   if (!response.ok) throw new Error(body.error || `桥接服务 HTTP ${response.status}`)
   return body
 }

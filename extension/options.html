@@ -16,9 +16,8 @@
     <p>让 Agent 使用浏览器里的图片工具。连接信息只保存在扩展中，不会读取或保存 Playground API Key。</p>
     <label for="bridgeUrl">图片工具地址</label>
     <input id="bridgeUrl" value="http://127.0.0.1:8787">
-    <label for="bridgeToken">连接码</label>
-    <input id="bridgeToken" type="password" autocomplete="off">
-    <button id="save">保存</button><span id="status"></span>
-    <script src="options.js"></script>
+    <p>扩展会从本机图片工具自动获取连接信息。通常只需要确认地址即可。</p>
+    <button id="save">保存并自动连接</button><span id="status"></span>
+    <script type="module" src="options.js"></script>
   </body>
 </html>

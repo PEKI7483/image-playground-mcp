@@ -3,8 +3,9 @@
   "name": "GPT Image Playground MCP Bridge",
   "version": "0.1.1",
   "description": "Connects a local MCP bridge to an open GPT Image Playground tab without reading API keys.",
+  "minimum_chrome_version": "102",
   "permissions": ["tabs", "storage"],
-  "host_permissions": ["http://127.0.0.1:8787/*", "http://localhost:8787/*", "<all_urls>"],
+  "host_permissions": ["http://127.0.0.1/*", "http://localhost/*"],
   "background": { "service_worker": "service-worker.js", "type": "module" },
   "content_scripts": [
     {

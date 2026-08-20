@@ -1,9 +1,20 @@
 {
   "name": "gpt-image-playground-mcp",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
+  "bin": {
+    "gpt-image-playground-mcp": "bin/gpt-image-playground-mcp.mjs"
+  },
+  "files": [
+    "bin/",
+    "dist/",
+    "extension/"
+  ],
   "scripts": {
     "build": "node node_modules/typescript/bin/tsc -p tsconfig.json",
+    "test": "npm run build && node test/bridge-auth.test.mjs && node test/setup.test.mjs && node test/bridge-url.test.mjs && node extension/content-script.test.mjs",
+    "prepare": "npm run build",
     "start": "node dist/server.js",
     "bridge": "node dist/bridgeMain.js"
   },

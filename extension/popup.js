@@ -1,4 +1,4 @@
-const DEFAULT_BRIDGE_URL = 'http://127.0.0.1:8787'
+import { DEFAULT_BRIDGE_URL, normalizeBridgeUrl } from './bridge-url.js'
 
 const elements = {
   runTab: document.querySelector('#runTab'),
@@ -22,13 +22,12 @@ const elements = {
   taskPanel: document.querySelector('#taskPanel'),
   helper: document.querySelector('#helper'),
   bridgeUrl: document.querySelector('#bridgeUrl'),
-  bridgeToken: document.querySelector('#bridgeToken'),
   saveSettings: document.querySelector('#saveSettings'),
   backToRun: document.querySelector('#backToRun'),
   settingsMessage: document.querySelector('#settingsMessage'),
 }
 
-let currentValues = { bridgeUrl: DEFAULT_BRIDGE_URL, bridgeToken: '' }
+let currentValues = { bridgeUrl: DEFAULT_BRIDGE_URL }
 
 function setPage(page) {
   const settings = page === 'settings'
@@ -38,7 +37,6 @@ function setPage(page) {
   elements.settingsTab.classList.toggle('active', settings)
   if (settings) {
     elements.bridgeUrl.value = currentValues.bridgeUrl
-    elements.bridgeToken.value = currentValues.bridgeToken
     elements.settingsMessage.textContent = ''
   }
 }
@@ -155,14 +153,13 @@ function renderError(error) {
 }
 
 async function loadHealth() {
-  const stored = await chrome.storage.local.get({ bridgeUrl: DEFAULT_BRIDGE_URL, bridgeToken: '' })
-  currentValues = { bridgeUrl: stored.bridgeUrl || DEFAULT_BRIDGE_URL, bridgeToken: stored.bridgeToken || '' }
-  if (!currentValues.bridgeToken) {
-    setPage('settings')
-    elements.settingsMessage.textContent = '请先填写连接码。'
-    return
-  }
-  const response = await fetch(`${currentValues.bridgeUrl.replace(/\/$/, '')}/v1/health`, { headers: { 'X-MCP-Bridge-Token': currentValues.bridgeToken } })
+  const stored = await chrome.storage.local.get({ bridgeUrl: DEFAULT_BRIDGE_URL })
+  currentValues = { bridgeUrl: normalizeBridgeUrl(stored.bridgeUrl || DEFAULT_BRIDGE_URL) }
+  const authResponse = await fetch(`${currentValues.bridgeUrl}/auth`, { cache: 'no-store' })
+  const authBody = await authResponse.json().catch(() => ({}))
+  if (!authResponse.ok || typeof authBody.token !== 'string' || !authBody.token) throw new Error('图片工具尚未启动，请先启动 Agent 客户端')
+  await chrome.storage.session.set({ bridgeToken: authBody.token })
+  const response = await fetch(`${currentValues.bridgeUrl}/v1/health`, { headers: { 'X-MCP-Bridge-Token': authBody.token } })
   const body = await response.json()
   if (!response.ok) throw new Error(body.error || `连接检查失败（${response.status}）`)
   setPage('run')
@@ -185,16 +182,18 @@ async function refresh() {
 }
 
 async function saveSettings() {
-  const bridgeUrl = elements.bridgeUrl.value.trim().replace(/\/$/, '')
-  const bridgeToken = elements.bridgeToken.value.trim()
-  if (!bridgeUrl || !bridgeToken) {
-    elements.settingsMessage.textContent = '请填写图片工具地址和连接码。'
+  let bridgeUrl
+  try {
+    bridgeUrl = normalizeBridgeUrl(elements.bridgeUrl.value)
+  } catch (error) {
+    elements.settingsMessage.textContent = error instanceof Error ? error.message : String(error)
     return
   }
   elements.saveSettings.disabled = true
   elements.settingsMessage.textContent = '已保存，正在检查连接。'
-  await chrome.storage.local.set({ bridgeUrl, bridgeToken })
-  currentValues = { bridgeUrl, bridgeToken }
+  await chrome.storage.local.set({ bridgeUrl })
+  await chrome.storage.session.remove('bridgeToken')
+  currentValues = { bridgeUrl }
   try {
     await loadHealth()
   } catch (error) {

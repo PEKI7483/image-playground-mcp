@@ -4,11 +4,42 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
-import { bridgeToken, startBridge } from './bridge.js'
+import { startBridge } from './bridge.js'
 
 const server = new Server({ name: 'gpt-image-playground', version: '0.1.0' }, { capabilities: { tools: {} } })
-const bridgeBaseUrl = `http://127.0.0.1:${Number(process.env.MCP_BRIDGE_PORT ?? 8787)}`
-const token = process.env.MCP_BRIDGE_TOKEN ?? bridgeToken()
+const bridgePort = Number(process.env.MCP_BRIDGE_PORT ?? 8787)
+const bridgeBaseUrl = `http://127.0.0.1:${bridgePort}`
+
+async function discoverBridgeToken(timeoutMs = 500) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const response = await fetch(`${bridgeBaseUrl}/auth`, { signal: controller.signal })
+    if (!response.ok) return null
+    const body = await response.json() as { token?: unknown }
+    return typeof body.token === 'string' && body.token ? body.token : null
+  } catch {
+    return null
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+const configuredToken = process.env.MCP_BRIDGE_TOKEN?.trim() || null
+let discoveredToken = configuredToken ? null : await discoverBridgeToken()
+if (!configuredToken && !discoveredToken) {
+  startBridge()
+  const deadline = Date.now() + 5_000
+  while (!discoveredToken && Date.now() < deadline) {
+    discoveredToken = await discoverBridgeToken(250)
+    if (!discoveredToken) await new Promise((resolve) => setTimeout(resolve, 100))
+  }
+}
+const initialToken = configuredToken ?? discoveredToken
+if (!initialToken) {
+  throw new Error(`无法连接本机桥接服务 ${bridgeBaseUrl}。请确认端口可用，或设置 MCP_BRIDGE_TOKEN 后重试。`)
+}
+let token: string = initialToken
 
 const toolSchemas = {
   generate_image: z.object({
@@ -59,7 +90,15 @@ async function bridgeFetch(path: string, init: RequestInit = {}) {
   const headers = new Headers(init.headers)
   headers.set('X-MCP-Bridge-Token', token)
   if (init.body) headers.set('Content-Type', 'application/json')
-  const response = await fetch(`${bridgeBaseUrl}${path}`, { ...init, headers })
+  let response = await fetch(`${bridgeBaseUrl}${path}`, { ...init, headers })
+  if (response.status === 401 && !configuredToken) {
+    const refreshedToken = await discoverBridgeToken(500)
+    if (refreshedToken && refreshedToken !== token) {
+      token = refreshedToken
+      headers.set('X-MCP-Bridge-Token', token)
+      response = await fetch(`${bridgeBaseUrl}${path}`, { ...init, headers })
+    }
+  }
   const text = await response.text()
   const body = text ? JSON.parse(text) as Record<string, unknown> : {}
   if (!response.ok) throw new Error(typeof body.error === 'string' ? body.error : `桥接服务返回 HTTP ${response.status}`)
@@ -124,5 +163,5 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   throw new Error(`未知工具: ${name}`)
 })
 
-startBridge()
+if (configuredToken) startBridge()
 await server.connect(new StdioServerTransport())

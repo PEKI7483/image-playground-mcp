@@ -5,7 +5,8 @@ import { dirname, isAbsolute } from 'node:path'
 import type { BridgeHealth, BridgeJob, BridgeRequestKind, BridgeResult, BridgeTaskStatus, ReferenceImage } from './protocol.js'
 
 const port = Number(process.env.MCP_BRIDGE_PORT ?? 8787)
-const token = process.env.MCP_BRIDGE_TOKEN ?? randomBytes(24).toString('hex')
+const configuredToken = process.env.MCP_BRIDGE_TOKEN?.trim()
+const token = configuredToken || randomBytes(24).toString('hex')
 const heartbeatIntervalMs = 5_000
 const configuredStaleMs = Number(process.env.MCP_ACTIVE_STALE_MS ?? 0)
 
@@ -178,10 +179,15 @@ async function saveImageResult(job: PendingJob, result: BridgeResult) {
 }
 
 async function handle(req: IncomingMessage, res: ServerResponse) {
-  if (!authorized(req)) return json(res, 401, { error: '未授权的桥接请求' })
   const url = new URL(req.url ?? '/', `http://127.0.0.1:${port}`)
 
   try {
+    if (req.method === 'GET' && url.pathname === '/auth') {
+      return json(res, 200, { ok: true, token, port })
+    }
+
+    if (!authorized(req)) return json(res, 401, { error: '未授权的桥接请求' })
+
     if (req.method === 'GET' && url.pathname === '/v1/next') {
       extensionLastSeen = Date.now()
       const job = claimNextJob()
@@ -293,30 +299,20 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
 
 export function startBridge() {
   let server: ReturnType<typeof createServer> | undefined
-  let retryTimer: NodeJS.Timeout | undefined
 
-  const listen = () => {
-    server = createServer((req, res) => {
-      void handle(req, res)
-    })
-    server.once('error', (error: NodeJS.ErrnoException) => {
-      if (error.code === 'EADDRINUSE') {
-        console.error(`MCP browser bridge port 127.0.0.1:${port} is busy; retrying`)
-        retryTimer = setTimeout(listen, 1_000)
-        return
-      }
-      console.error(error)
-    })
-    server.listen(port, '127.0.0.1', () => {
-      console.error(`MCP browser bridge listening on 127.0.0.1:${port}`)
-      console.error(`MCP_BRIDGE_TOKEN=${token}`)
-    })
-  }
-
-  listen()
+  server = createServer((req, res) => {
+    void handle(req, res)
+  })
+  server.once('error', (error: NodeJS.ErrnoException) => {
+    if (error.code === 'EADDRINUSE') {
+      console.error(`MCP browser bridge port 127.0.0.1:${port} is already in use; using the existing bridge`)
+      server?.close()
+      return
+    }
+    console.error(error)
+  })
+  server.listen(port, '127.0.0.1', () => {
+    console.error(`MCP browser bridge listening on 127.0.0.1:${port}`)
+  })
   return server
-}
-
-export function bridgeToken() {
-  return token
 }
