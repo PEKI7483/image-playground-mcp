@@ -3,7 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PEKI7483/image-playground-mcp.git"
+  },
   "bin": {
+    "image-playground-mcp": "bin/gpt-image-playground-mcp.mjs",
     "gpt-image-playground-mcp": "bin/gpt-image-playground-mcp.mjs"
   },
   "files": [

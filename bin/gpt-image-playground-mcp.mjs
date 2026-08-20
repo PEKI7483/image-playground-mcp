@@ -74,10 +74,14 @@ function npxCommand(context = runtimeContext()) {
 function serverEntry(port, context = runtimeContext()) {
   const entry = {
     command: npxCommand(context),
-    args: ['-y', PACKAGE_SPEC],
+    args: mcpArgs(),
   }
   if (port != null) entry.env = { MCP_BRIDGE_PORT: String(port) }
   return entry
+}
+
+function mcpArgs() {
+  return ['-y', PACKAGE_SPEC]
 }
 
 function appDataPath(context, ...parts) {
@@ -129,9 +133,10 @@ function targetReport(items) {
 function jsonServerEntry(existing, port, context = runtimeContext()) {
   const entry = { ...(existing && typeof existing === 'object' && !Array.isArray(existing) ? existing : {}) }
   entry.command = npxCommand(context)
-  entry.args = ['-y', PACKAGE_SPEC]
+  entry.args = mcpArgs()
   const env = existing?.env && typeof existing.env === 'object' && !Array.isArray(existing.env) ? { ...existing.env } : {}
   delete env.MCP_BRIDGE_TOKEN
+  delete env.MCP_BRIDGE_PORT
   if (port != null) env.MCP_BRIDGE_PORT = String(port)
   if (Object.keys(env).length) entry.env = env
   else delete entry.env
@@ -224,7 +229,7 @@ function nextBackupName(path) {
 async function planChange(target, port, context = runtimeContext()) {
   const before = await readConfig(target)
   const after = target.format === 'codex' ? codexWithServer(before, port, context) : jsonWithServer(before, port, context)
-  return { target, before, after, changed: before !== after, backup: existsSync(target.path) ? nextBackupName(target.path) : null }
+  return { target, before, after, changed: before !== after, backup: existsSync(target.path) ? nextBackupName(target.path) : null, command: npxCommand(context), args: mcpArgs() }
 }
 
 async function applyChange(change) {
@@ -250,8 +255,8 @@ function printDiff(change) {
   const portConfigured = change.after.includes('MCP_BRIDGE_PORT')
   console.log('  预览内容（不回显既有配置或敏感值）：')
   console.log(`  - server: ${SERVER_NAME}`)
-  console.log(`  - command: ${change.target.path.includes('\\') ? 'npx.cmd' : 'npx'}`)
-  console.log(`  - args: -y ${PACKAGE_SPEC}`)
+  console.log(`  - command: ${change.command}`)
+  console.log(`  - args: ${change.args.join(' ')}`)
   if (portConfigured) console.log('  - env: MCP_BRIDGE_PORT（已配置）')
 }
 
@@ -314,7 +319,8 @@ export {
   targets,
 }
 
-const invokedPath = process.argv[1] ? realpathSync(resolve(process.argv[1])) : null
+const invokedPathCandidate = process.argv[1] ? resolve(process.argv[1]) : null
+const invokedPath = invokedPathCandidate && existsSync(invokedPathCandidate) ? realpathSync(invokedPathCandidate) : null
 const modulePath = realpathSync(fileURLToPath(import.meta.url))
 
 if (invokedPath === modulePath) {
