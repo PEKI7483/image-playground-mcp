@@ -30,11 +30,11 @@ Playground 页面仍然负责调用图像 API 和保存自己的登录状态。M
 以下命令请在项目根目录执行：
 
 ```bash
-npm install --no-bin-links
+npm install
 npm run build
 ```
 
-外置磁盘上的部分环境无法创建 npm 的 `.bin` 符号链接，所以安装命令保留了 `--no-bin-links`。构建成功后，`dist/` 目录应包含 `server.js`、`bridge.js` 和 `bridgeMain.js`。
+构建成功后，`dist/` 目录应包含 `server.js`、`bridge.js` 和 `bridgeMain.js`。
 
 ## 配置桥接令牌
 
@@ -74,7 +74,7 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 
 ## 配置 MCP 客户端
 
-将下面的配置加入 MCP 客户端。把 `args` 中的路径改成项目的实际绝对路径，把 token 替换为刚才生成的令牌：
+将下面的配置加入 MCP 客户端。把 `<项目根目录>` 替换为本项目所在目录，把 token 替换为刚才生成的令牌：
 
 ```json
 {
